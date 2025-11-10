@@ -6,9 +6,11 @@ import 'package:firedart/firedart.dart';
 import 'firestore_setup.dart';
 import 'realtime_example.dart';
 
+final bool _isWindows = Platform.isWindows;
+
 Future<void> main(List<String> args) async {
   stdout.writeln('⚙️  Initializing Firestore consumer...');
-  final firestore = await initializeFirestore();
+  final Firestore firestore = await initializeFirestoreFromServiceAccountFile();
   final callsCollection = firestore.collection('demoCalls');
 
   final display = RealtimeStatusDisplay(collection: callsCollection);
@@ -16,17 +18,28 @@ Future<void> main(List<String> args) async {
   stdout.writeln('📡 Consumer running. Press Ctrl+C to quit.');
 
   final completer = Completer<void>();
+  var isShuttingDown = false;
 
-  void shutdown() {
-    if (completer.isCompleted) return;
+  Future<void> shutdown() async {
+    if (isShuttingDown || completer.isCompleted) return;
+    isShuttingDown = true;
     stdout.writeln('\n👋 Shutting down consumer.');
     display.dispose();
-    Firestore.instance.close();
+    await shutdownFirestore(firestore);
     completer.complete();
   }
 
-  ProcessSignal.sigint.watch().listen((_) => shutdown());
-  ProcessSignal.sigterm.watch().listen((_) => shutdown());
+  ProcessSignal.sigint.watch().listen((_) {
+    unawaited(shutdown());
+  });
+
+  if (!_isWindows) {
+    ProcessSignal.sigterm.watch().listen((_) {
+      unawaited(shutdown());
+    });
+  } else {
+    stdout.writeln('ℹ️ SIGTERM handling not supported on Windows. Use Ctrl+C.');
+  }
 
   await completer.future;
 }

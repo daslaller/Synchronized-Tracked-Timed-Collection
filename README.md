@@ -9,17 +9,17 @@ call data, but the library is agnostic to the domain.
 ## Getting started
 
 1. Enable Firestore in your Firebase project.
-2. Download a service-account JSON file and export environment variables so the
-   CLI scripts can authenticate using Google Application Default Credentials
-   (ADC):
+2. Place your service-account JSON file at
+   `lib/Secrets/synchronizedtrackedtimeset-firebase-adminsdk-fbsvc-67f45a8798.json`
+   (or pass a custom path to `initializeFirestoreFromServiceAccountFile`). Set
+   the project id for the scripts by exporting `FIREBASE_PROJECT_ID`. The helper
+   will also read `project_id` from the JSON file if present:
 
    ```powershell
-   $env:GOOGLE_APPLICATION_CREDENTIALS="D:\path\to\service-account.json"
    $env:FIREBASE_PROJECT_ID="synchronizedtrackedtimeset"
    ```
 
-   Replace the values with your actual paths/project id. On macOS/Linux use
-   `export` instead of `$env:`.
+   On macOS/Linux use `export` instead of `$env:`.
 
 3. Install dependencies: `dart pub get`.
 
@@ -47,14 +47,34 @@ The emitter script:
 
 - Instantiates `SynchronizedTimedSet<Call>` with a custom identity provider so
   each call keeps the same Firestore document id.
-- Hooks the set into Firestore through `FirebaseSyncService`.
-- Simulates an inbound call being created, updated, and completed.
+- Hooks the set into Firestore through `FirebaseSyncService` and
+  `initializeFirestoreFromServiceAccountFile`.
+- Streams randomised call traffic for a configurable duration, cycling through
+  add/update/remove events while generating realistic phone numbers and tags.
+
+Tweak the behaviour via CLI flags or environment variables, for example:
+
+```bash
+dart run example/call_emitter.dart --duration=180 --max-concurrent=10
+```
+
+Supported knobs:
+
+- `--duration` / `--duration-seconds` or `EMITTER_DURATION_SECONDS`
+- `--max-concurrent` / `EMITTER_MAX_CONCURRENT`
+- `--min-interval-ms`, `--max-interval-ms`, or the matching env variables
 
 ### 3. Observe the data
 
 Open the [Firestore console](https://console.firebase.google.com/project/synchronizedtrackedtimeset/firestore/databases/-default-/data)
 and inspect the `demoCalls` collection to watch the documents change in real
-time.
+time. Each document includes sync metadata:
+
+- `syncStatus`: `"active"` while the item is present in the timed set, `"removed"`
+  when it was explicitly dropped (e.g. call ended), `"expired"` when the lifetime
+  elapsed.
+- `addedAt`, `expiresAt`, `lastModifiedAt`, `endedAt`: timestamps captured by the
+  sync service for auditing and reconciliation.
 
 ## Custom identity helpers
 
