@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:developer';
+
 enum ChangeType { added, removed, modified, expired }
 
 class TimedEntry<T> {
@@ -58,12 +59,15 @@ class SynchronizedTimedSet<T> {
   final Duration _cleanupInterval;
   bool _isCleaningUp = false;
   final int _maxBatchSize;
+  final Object? Function(T item)? _identityProvider;
 
   SynchronizedTimedSet({
     Duration cleanupInterval = const Duration(milliseconds: 100),
     int maxBatchSize = 1000, // Limit processing batch size
+    Object? Function(T item)? identityProvider,
   }) : _cleanupInterval = cleanupInterval,
-       _maxBatchSize = maxBatchSize {
+       _maxBatchSize = maxBatchSize,
+       _identityProvider = identityProvider {
     _startCleanupTimer();
   }
 
@@ -181,7 +185,9 @@ class SynchronizedTimedSet<T> {
         await Future.delayed(Duration.zero); // Yield to event loop
       }
     }
-    log('batched cleanup took: ${DateTime.now().difference(now).inMilliseconds}ms');
+    log(
+      'batched cleanup took: ${DateTime.now().difference(now).inMilliseconds}ms',
+    );
   }
 
   /// Synchronize with a new set of items, each with their max lifetime
@@ -276,6 +282,9 @@ class SynchronizedTimedSet<T> {
   /// Override this method to define how to identify items of type T
   /// Default implementation uses toString(), but you can override for custom identity
   dynamic _getIdentityKey(T item) {
+    final customIdentity = _identityProvider;
+    if (customIdentity != null) return customIdentity(item);
+
     // For data classes, you might want to use a specific ID field
     // This is a simple default that works for many cases
     if (item is Map) return item['id'] ?? item.toString();

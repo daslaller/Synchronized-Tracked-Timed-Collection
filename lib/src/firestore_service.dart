@@ -1,22 +1,36 @@
 import 'dart:async';
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:synchronized_tracked_time_list/synchronized_tracked_time_list.dart'; // The file with SynchronizedTimedSet
+
+import 'package:synchronized_tracked_time_list/synchronized_tracked_time_list.dart';
+
+typedef FirestoreWriteFn =
+    Future<void> Function(String docId, Map<String, dynamic> payload);
+
+class FirestoreCollectionWriter {
+  final FirestoreWriteFn setDocument;
+  final FirestoreWriteFn updateDocument;
+
+  const FirestoreCollectionWriter({
+    required this.setDocument,
+    required this.updateDocument,
+  });
+}
+
 class FirebaseSyncService<T> {
   final SynchronizedTimedSet<T> _timedSet;
-  final CollectionReference _collection;
+  final FirestoreCollectionWriter _collection;
   final String Function(T item) _idProvider;
   final Map<String, dynamic> Function(T item) _serializer;
   StreamSubscription? _subscription;
 
   FirebaseSyncService({
     required SynchronizedTimedSet<T> timedSet,
-    required CollectionReference collection,
+    required FirestoreCollectionWriter collection,
     required String Function(T item) idProvider,
     required Map<String, dynamic> Function(T item) serializer,
-  })  : _timedSet = timedSet,
-        _collection = collection,
-        _idProvider = idProvider,
-        _serializer = serializer {
+  }) : _timedSet = timedSet,
+       _collection = collection,
+       _idProvider = idProvider,
+       _serializer = serializer {
     _listenToChanges();
   }
 
@@ -49,17 +63,14 @@ class FirebaseSyncService<T> {
       'lastModifiedAt': DateTime.now(),
     };
     print("🔥 Firebase SET: doc('$docId') -> status: active");
-    await _collection.doc(docId).set(payload);
+    await _collection.setDocument(docId, payload);
   }
 
   Future<void> _handleItemModified(T item) async {
     final docId = _idProvider(item);
-    final payload = {
-      ..._serializer(item),
-      'lastModifiedAt': DateTime.now(),
-    };
+    final payload = {..._serializer(item), 'lastModifiedAt': DateTime.now()};
     print("🔥 Firebase UPDATE: doc('$docId') -> modified content");
-    await _collection.doc(docId).update(payload);
+    await _collection.updateDocument(docId, payload);
   }
 
   Future<void> _handleItemRemovedOrExpired(T item, String status) async {
@@ -69,7 +80,7 @@ class FirebaseSyncService<T> {
       'endedAt': DateTime.now(),
     };
     print("🔥 Firebase UPDATE: doc('$docId') -> status: $status");
-    await _collection.doc(docId).update(payload);
+    await _collection.updateDocument(docId, payload);
   }
 
   void dispose() {

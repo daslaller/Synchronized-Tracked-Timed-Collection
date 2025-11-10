@@ -1,39 +1,75 @@
-<!-- 
-This README describes the package. If you publish this package to pub.dev,
-this README's contents appear on the landing page for your package.
+Synchronized timed collections for keeping transient datasets in sync with
+Firebase Firestore from a pure Dart environment. The included example models
+call data, but the library is agnostic to the domain.
 
-For information about how to write a good package README, see the guide for
-[writing package pages](https://dart.dev/tools/pub/writing-package-pages). 
-
-For general information about developing packages, see the Dart guide for
-[creating packages](https://dart.dev/guides/libraries/create-packages)
-and the Flutter guide for
-[developing packages and plugins](https://flutter.dev/to/develop-packages). 
--->
-
-TODO: Put a short description of the package here that helps potential users
-know whether this package might be useful for them.
-
-## Features
-
-TODO: List what your package can do. Maybe include images, gifs, or videos.
+- `SynchronizedTimedSet<T>` keeps an in-memory view of time-bound entries.
+- `FirebaseSyncService<T>` mirrors the set into Firestore via
+  [`firedart`](https://pub.dev/packages/firedart) (no Flutter runtime needed).
 
 ## Getting started
 
-TODO: List prerequisites and provide or point to information on how to
-start using the package.
+1. Enable Firestore in your Firebase project.
+2. Download a service-account JSON file and export environment variables so the
+   CLI scripts can authenticate using Google Application Default Credentials
+   (ADC):
+
+   ```powershell
+   $env:GOOGLE_APPLICATION_CREDENTIALS="D:\path\to\service-account.json"
+   $env:FIREBASE_PROJECT_ID="synchronizedtrackedtimeset"
+   ```
+
+   Replace the values with your actual paths/project id. On macOS/Linux use
+   `export` instead of `$env:`.
+
+3. Install dependencies: `dart pub get`.
 
 ## Usage
 
-TODO: Include short and useful examples for package users. Add longer examples
-to `/example` folder. 
+The `example/` folder contains a fully wired emitter/consumer pair.
 
-```dart
-const like = 'sample';
+### 1. Start the consumer
+
+Run this in the first terminal to tail real-time updates:
+
+```bash
+dart run example/call_consumer.dart
 ```
 
-## Additional information
+### 2. Drive the emitter
 
-TODO: Tell users more about the package: where to find more information, how to 
-contribute to the package, how to file issues, what response they can expect 
-from the package authors, and more.
+Run the emitter in a second terminal (with the same environment variables):
+
+```bash
+dart run example/call_emitter.dart
+```
+
+The emitter script:
+
+- Instantiates `SynchronizedTimedSet<Call>` with a custom identity provider so
+  each call keeps the same Firestore document id.
+- Hooks the set into Firestore through `FirebaseSyncService`.
+- Simulates an inbound call being created, updated, and completed.
+
+### 3. Observe the data
+
+Open the [Firestore console](https://console.firebase.google.com/project/synchronizedtrackedtimeset/firestore/databases/-default-/data)
+and inspect the `demoCalls` collection to watch the documents change in real
+time.
+
+## Custom identity helpers
+
+Provide `identityProvider` when creating the timed set to define how incoming
+items should be matched against existing entries:
+
+```dart
+final timedSet = SynchronizedTimedSet<Call>(
+  identityProvider: (call) => call.uniqueIdentfier,
+);
+```
+
+## Authentication options
+
+- The init helper in `example/firestore_setup.dart` defaults to ADC. Ensure
+  `GOOGLE_APPLICATION_CREDENTIALS` points to a service-account JSON file.
+- To test with a web API key instead, call `initializeFirestore` with
+  `useApplicationDefaultAuth: false` and export `FIREBASE_WEB_API_KEY`.

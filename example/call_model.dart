@@ -32,7 +32,7 @@ class Call {
   TelavoxLineStatus status;
   List<String> tags = [];
   Call({required this.callerID, required this.direction, required this.status})
-      : uniqueIdentfier = md5.convert(utf8.encode(callerID)).toString();
+    : uniqueIdentfier = md5.convert(utf8.encode(callerID)).toString();
 
   factory Call.fromJSONcallData(data) {
     return Call(
@@ -73,8 +73,10 @@ class Call {
   }
 
   @override
-  int get hashCode => Object.hash(callerID, uniqueIdentfier, direction, status, tags);
+  int get hashCode =>
+      Object.hash(callerID, uniqueIdentfier, direction, status, tags);
 
   @override
-  String toString() => 'Call(id: $uniqueIdentfier, caller: $callerID, status: ${status.label})';
+  String toString() =>
+      'Call(id: $uniqueIdentfier, caller: $callerID, status: ${status.label})';
 }
